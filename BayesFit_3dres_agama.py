@@ -34,9 +34,8 @@ y  = data_[:,1]
 vz = data_[:,2]
 #mass = data_[:,6]
 data = np.column_stack((x,y,vz))
-data_proj = np.column_stack((x,y,x*0,x*0,vz,x*np.inf,x*np.inf,x*0))
+data_proj = np.column_stack((x,y,x*0,x*0,vz,x*np.inf,x*np.inf,x*0)) #prepare data file for marginalisation
 
-NMC         = 1000 # number of mc samples for marginalisation calculation
 VERBOSE     = True 
 AUTOCORR    = False # autocorrelation analysis?
 NSTEPS      = 20000 # number steps in mcmc
@@ -44,11 +43,9 @@ NPARAM      = 13
 NWALKERS    = 26
 MP          = True
 CLUSTER     = True
-RESTART     = False
+RESTART     = True
 BACKEND     = True
-RDISK       = 4.61
-RBULGE      = 1.19
-BACKENDFILE = "Backend_Au21_nstars"+str(NSTARS)+"_diskbulgescale.h5"
+BACKENDFILE = "Backend_mock_3d_nstars_"+str(NSTARS)+".h5"
 #%%
 print('*********** BayesFit to Auriga simulations  ******************')
 print('Number of walkers: '+str(NWALKERS))
@@ -198,8 +195,17 @@ def _posterior(param):
     norm = df.totalMass()
     
     # Calculate likelihood (+ marginalise over unknown coordinates (z,vx,vy))
-    gm = agama.GalaxyModel(pot,df)
-    DF = gm.projectedDF(data_proj)
+    try:
+        gm = agama.GalaxyModel(pot,df)
+    except (RuntimeError):
+        print('RuntimeError from creating GalaxyModel')
+        return -np.inf
+    try:
+        DF = gm.projectedDF(data_proj)
+    except (RuntimeError):
+        print('RuntimeError from creating calculating projected df')
+        return -np.inf
+    
     logL = np.sum(np.log(DF/norm)) # assuming all particles have equal mass
     
     
@@ -265,47 +271,36 @@ if __name__ == "__main__":
     print(" ")
     print("emcee took "+str(np.round(multi_time,2))+" s.")
     print('Done!')
+    
 #%%
 
-n_mc = 5
-N_STARS = 3
-
-x = np.array([1,2,3])
-y = np.array([4,5,6])
-vz = np.array([7,8,9])
-data3d = np.column_stack((x,y,vz))
-
-z = np.array([0.1,0.1,0.1])
-vx = np.array([0.2,0.2,0.2])
-vy = np.array([0.3,0.3,0.3])
-
-zerr = np.array([1000,1000,1000])
-vxerr = np.array([1000,1000,1000])
-vyerr = np.array([1000,1000,1000])
-
-z_vx_vy = np.column_stack((z,vx,vy))
-z_vx_vy_err = np.column_stack((zerr,vxerr,vyerr))
-
-
-data6d = np.dstack((x,y,z,vx,vy,vz))
-
-
-z_vx_vy_mc = np.random.normal(z_vx_vy,z_vx_vy_err,(n_mc,N_STARS,3))
-
-data3d_mc = np.random.uniform(data3d,data3d,(n_mc,N_STARS,3))
-
-#%%
-
-wc_mc = np.dstack((data3d_mc[:,:,0],data3d_mc[:,:,1],z_vx_vy_mc[:,:,0],z_vx_vy_mc[:,:,1],z_vx_vy_mc[:,:,2],data3d_mc[:,:,2]))
-
-
-
-#%%
-
-
-
-
-
+# =============================================================================
+# n = 10
+# slopein_ = np.linspace(0.00001,2.9999,n)
+# #slopeout_ = np.linspace(3.0001,10,n) 
+# #J0_ =np.linspace(5000,10000,n)
+# post = []
+# 
+# start1 = time.time()
+# for i in range(n):
+#     par_ = np.array([slopein_[i],5.5,8000, 0.75,1.7,0.88,1.1,0.5,1.1*(10**7.),17.,0.8,3.1*(10**10),5.6*(10**10)])
+#     post.append(_posterior(par_))
+# end1 = time.time()
+# 
+# post = np.array(post)
+# t = end1-start1
+# meant= t/n
+# #%%
+# 
+# with plt.xkcd():
+#     # This figure will be in XKCD-style
+#     fig = plt.figure()
+#     plt.plot(slopein_,post,c='black',label=r'proj DF,$\bar{t}$ =20.20s/it')
+#     plt.xlabel(r'$\beta_{in}$')
+#     plt.ylabel('posterior')
+#     plt.legend()
+#     plt.savefig('projDF_slopein.png',format='png',bbox_inches='tight')
+# =============================================================================
 
 
 
