@@ -1,0 +1,223 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Tue Jul  5 16:16:26 2022
+
+@author: Paula Gherghinescu
+@description: Various different methods
+
+"""
+
+import agama
+import numpy as np
+import matplotlib.pyplot as plt
+import pandas as pd
+
+agama.setUnits(mass=1,length=1,velocity=1)
+
+
+# =============================================================================
+# def enclosed_mass(potential,r):
+#     """
+#     Calculate the enclosed mass at a given radius r, given the potential of a galaxy.
+# 
+#     Parameters
+#     ----------
+#     potential : TYPE Agama potential object
+#         DESCRIPTION. The potential for which we wish to calculate the enclosed mass at a 
+#                      given radius.
+#     r : TYPE numpy scalar
+#         DESCRIPTION. Radius at which we wish to calculate the enclosed mass.
+# 
+#     Returns
+#     -------
+#     M : TYPE scalar
+#         DESCRIPTION. The enclosed mass M at radius r calculated in the given potential.
+# 
+#     """
+#     dM = lambda r: potential.density(np.column_stack((r,r*0,r*0)))*(4*np.pi*(r**2.))
+#     M = integrate.quad(dM, 0.00001, r)
+#     return (M)
+# =============================================================================
+
+def spherical_to_cartesian(Spherical):
+    
+    """ SPHERICAL (GALACTOCENTRIC) TO CARTESIAN (GALACTOCENTRIC)
+
+    Arguments:
+        Spherical - Spherical Galactocentric coordinates [vector]:
+            r      - spherical radius (kpc, [0,infty])
+            theta  - azimuth angle (rad,[-pi/2,pi/2])
+            phi    - polar angle (rad,[0,2pi])
+            vr     - radial velocity (km/s, [-infty,infty])
+            vtheta - azimuthal velocity (km/s,[-infty,infty])
+            vphi   - polar velocity (km/s,[-infty,infty])
+        
+    Returns:
+        Cartesian - Cartesian Galactocentric coordinates [vector]
+            x      - (kpc, [-infty,infty])
+            y      - (kpc, [-infty,infty])
+            z      - (kpc, [-infty,infty])
+            vx     - (km/s, [-infty,infty])
+            vy     - (km/s, [-infty,infty])
+            vz     - (km/s, [-infty,infty])     
+    """
+
+    # r,theta,phi -> x,y,z
+    r  = Spherical[0]
+    st = np.sin(Spherical[1])
+    sp = np.sin(Spherical[2])
+    ct = np.cos(Spherical[1])
+    cp = np.cos(Spherical[2])
+    x  = r*st*cp
+    y  = r*st*sp
+    z  = r*ct
+    
+    return (np.array([x,y,z]))
+
+
+
+
+def enclosed_mass(potential,r):
+    """
+    Calculate the enclosed mass at a given radius r, given the potential of a galaxy.
+
+    Parameters
+    ----------
+    potential : TYPE Agama potential object
+        DESCRIPTION. The potential for which we wish to calculate the enclosed mass at a 
+                     given radius.
+    r : TYPE numpy scalar
+        DESCRIPTION. Radius at which we wish to calculate the enclosed mass.
+
+    Returns
+    -------
+    M : TYPE scalar
+        DESCRIPTION. The enclosed mass M at radius r calculated in the given potential.
+
+    """
+    def mean_density(R):
+        ntheta = 360
+        nphi = 720
+        
+        ntheta = 36
+        nphi = 72
+        
+        theta_grid = np.linspace(-np.pi/2,np.pi/2,ntheta)
+        phi_grid = np.linspace(0.,2*np.pi,nphi)
+        
+        rho = []
+        
+        for i in range(len(theta_grid)):
+            for j in range(len(phi_grid)):
+                xsph = np.array([R,theta_grid[i],phi_grid[j]])
+                xcart = spherical_to_cartesian(xsph)
+                rho.append(potential.density(xcart))
+        rho = np.array(rho)
+        
+        return(np.mean(rho))
+    
+    
+    M = mean_density(r)*((r**3.)/3)
+        
+    return (M)
+
+
+
+    
+def enclosed_mass_binning(data):
+    x  = data[:,0]
+    y  = data[:,1]
+    z  = data[:,2]
+    m  = data[:,3]
+    r  = np.sqrt(x**2.+y**2.+z**2.)
+    
+    rmax = max(r)
+    rmin = min(r)
+
+    rbins = np.logspace(np.log10(rmin),np.log10(rmax),30)
+
+    # Create r bins
+# =============================================================================
+#     r_  = rmin
+#     dr = 0.5
+#     rbins = []
+#     while (r_<=rmax):
+#         rbins.append(r_)
+#         r_ = r_ + dr
+# =============================================================================
+    
+    h = np.histogram(r,bins=rbins)
+    r_binIndex = np.digitize(r, rbins)
+    
+    
+    
+    dict_data = {'r':r,
+                'm':m,
+                'r_binIndex': r_binIndex}
+    df_data   = pd.DataFrame(dict_data) # Data frame with positions r and their corresponding bin
+    df_pos       = df_data.groupby(['r_binIndex']).agg(pos = ('r',np.mean))        
+    df_dm = df_data.groupby(['r_binIndex']).agg(dm = ("m", np.sum))
+    
+    pos          = np.array(df_pos['pos'])
+    dm = np.array(df_dm['dm'])
+    
+    M = []
+    M.append(dm[0])   
+    for i in range(len(dm)-1):
+        M.append(dm[i+1]+dm[i])
+    
+    return(pos,M)
+        
+
+
+def mean_density(potential, r):
+    """
+    Computes the spherically averaged density generated by [potential] at radius r.
+
+    Parameters
+    ----------
+    potential : [agama.Potential] object
+
+    r : [float]
+        .
+
+    Returns
+    -------
+    rho [float] 
+
+    """
+    theta_grid = np.linspace(-np.pi/2,np.pi/2,360)
+    phi_grid = np.linspace(0.,2*np.pi,720)
+    
+    rho = []
+    
+    for i in range(len(theta_grid)):
+        for j in range(len(phi_grid)):
+            xsph = np.array([r,theta_grid[i],phi_grid[j]])
+            xcart = spherical_to_cartesian(xsph)
+            rho.append(potential.density(xcart))
+    rho = np.array(rho)
+    
+    return(np.mean(rho))    
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
